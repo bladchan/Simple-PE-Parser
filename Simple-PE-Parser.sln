@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.32630.194
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Simple-PE-Parser", "Simple-PE-Parser\Simple-PE-Parser.vcxproj", "{7C1AA139-4D96-48D2-A187-38251866D018}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Debug|x86 = Debug|x86
+		Release|x64 = Release|x64
+		Release|x86 = Release|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{7C1AA139-4D96-48D2-A187-38251866D018}.Debug|x64.ActiveCfg = Debug|x64
+		{7C1AA139-4D96-48D2-A187-38251866D018}.Debug|x64.Build.0 = Debug|x64
+		{7C1AA139-4D96-48D2-A187-38251866D018}.Debug|x86.ActiveCfg = Debug|Win32
+		{7C1AA139-4D96-48D2-A187-38251866D018}.Debug|x86.Build.0 = Debug|Win32
+		{7C1AA139-4D96-48D2-A187-38251866D018}.Release|x64.ActiveCfg = Release|x64
+		{7C1AA139-4D96-48D2-A187-38251866D018}.Release|x64.Build.0 = Release|x64
+		{7C1AA139-4D96-48D2-A187-38251866D018}.Release|x86.ActiveCfg = Release|Win32
+		{7C1AA139-4D96-48D2-A187-38251866D018}.Release|x86.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {BFBEE36A-EB1A-4A4E-AD69-E12CD75B7D80}
+	EndGlobalSection
+EndGlobal
