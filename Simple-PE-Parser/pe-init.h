@@ -1,6 +1,6 @@
 #pragma once
 #include <stdio.h>
-#include "pe32.h"
+#include <stdlib.h>
 #include "pe-custom.h"
 #include "winntdef.h"
 
