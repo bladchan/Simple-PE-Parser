@@ -19,6 +19,9 @@ private:
 	// PE相关头中的偏移量
 	LONG nt_headers_offset;
 
+	// 与Rich headers有关的相关变量
+	RICH_HEADER rich_headers;
+
 	// 解析相关的函数
 	void parse_file();
 	void parse_dos_header();
@@ -26,13 +29,11 @@ private:
 	void parse_nt_headers();
 	void parse_section_headers();
 
-
 	// 打印相关的函数
 	void print_file_info();
 	void print_dos_header_info();
 	void print_dos_stub_info();
 	void print_nt_headers_info();
 	void print_section_headers_info();
-
 
 };

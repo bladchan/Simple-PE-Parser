@@ -14,6 +14,8 @@ typedef unsigned __int64 ULONGLONG;
 #define ___IMAGE_NUMBEROF_DIRECTORY_ENTRIES    16
 #define ___IMAGE_DOS_SIGNATURE                 0x5A4D      // MZ
 #define ___IMAGE_NT_SIGNATURE                  0x00004550  // PE..
+#define ___IMAGE_RICH_ID                       0x68636952  // Rich
+#define ___IMAGE_RICH_DANS_ID                  0x536E6144  // DanS
 
 #define ___IMAGE_DIRECTORY_ENTRY_EXPORT          0
 #define ___IMAGE_DIRECTORY_ENTRY_IMPORT          1
