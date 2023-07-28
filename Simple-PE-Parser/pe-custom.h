@@ -1,7 +1,7 @@
 #pragma once
 #include "winntdef.h"
 
-#define __PRODID_NAME_NUM 0x010f;
+#define __PRODID_NAME_NUM 0x010f
 
 typedef struct __RICH_HEADER_DATA {
 	int   data_size;
@@ -29,7 +29,7 @@ typedef struct __RICH_HEADER {
  *  Copy from
  *  https://github.com/hasherezade/bearparser/blob/65d6417b1283eb64237141ee0c865bdf0f13ac73/parser/pe/RichHdrWrapper.cpp
  */
-static const char* prod_ids_to_names[] = {
+static const char* prod_ids_to_names[__PRODID_NAME_NUM] = {
 	"Unknown", "Import0", "Linker510", "Cvtomf510",
 	"Linker600", "Cvtomf600", "Cvtres500", "Utc11_Basic",
 	"Utc11_C", "Utc12_Basic", "Utc12_C", "Utc12_CPP",
@@ -106,4 +106,39 @@ static const char* prod_ids_to_names[] = {
 	"Utc1900_CPP", "Utc1900_CVTCIL_C", "Utc1900_CVTCIL_CPP", "Utc1900_LTCG_C",
 	"Utc1900_LTCG_CPP", "Utc1900_LTCG_MSIL","Utc1900_POGO_I_C",
 	"Utc1900_POGO_I_CPP", "Utc1900_POGO_O_C", "Utc1900_POGO_O_CPP"
+};
+
+static const char* translate_machine(WORD w) {
+	switch (w) {
+		case 0x014C:
+			return "x86";
+		case 0x8664:
+			return "x64";
+		case 0x0200:
+			return "Intel Itanium";
+		default:
+			return "Unknow";
+	}
+}
+
+/* 
+ *  https://learn.microsoft.com/en-us/windows/win32/debug/pe-format#characteristics
+*/
+static const char* characteristics_names[] = {
+	"Relocation info stripped from file.",
+	"File is executable  (i.e. no unresolved external references).",
+	"Line numbers stripped from file.",
+	"Local symbols stripped from file.",
+	"Aggressively trim working set.",
+	"App can handle > 2gb addresses.",
+	" * Reserved",
+	"Bytes of machine word are reversed.",
+	"32 bit word machine.",
+	"Debugging info stripped from file in .DBG file.",
+	"If Image is on removable media, copy and run from the swap file.",
+	"If Image is on Net, copy and run from the swap file.",
+	"System File.",
+	"File is a DLL.",
+	"File should only be run on a UP machine.",
+	"Bytes of machine word are reversed."
 };

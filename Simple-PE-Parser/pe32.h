@@ -19,6 +19,9 @@ private:
 
 	// PE相关头中的偏移量
 	LONG nt_headers_offset;
+	WORD nt_sections_cnt;
+	WORD nt_optional_header_size;
+	WORD nt_characteristics;
 
 	// 与Rich headers有关的相关变量
 	RICH_HEADER rich_headers;

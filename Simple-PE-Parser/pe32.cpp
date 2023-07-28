@@ -16,6 +16,7 @@ void PE32::print_info()
 {
 	print_dos_header_info();
 	print_dos_stub_info();
+	print_nt_headers_info();
 }
 
 void PE32::parse_file()
@@ -25,6 +26,9 @@ void PE32::parse_file()
 
 	// 解析Rich Headers
 	parse_dos_stub();
+
+	// 解析NT Headers
+	parse_nt_headers();
 
 }
 
@@ -160,15 +164,29 @@ void PE32::parse_dos_stub()
 
 }
 
+void PE32::parse_nt_headers()
+{
+	size_t read_size;
+
+	fseek(pe_fp, nt_headers_offset, SEEK_SET);
+	read_size = fread(&pe_nt_headers_32, sizeof(___IMAGE_NT_HEADERS32), 1, pe_fp);
+
+	if (read_size != 1) {
+		fprintf(stderr, "Error: Bad PE file!\n");
+		exit(-1);
+	}
+
+	nt_sections_cnt = pe_nt_headers_32.FileHeader.NumberOfSections;
+	nt_optional_header_size = pe_nt_headers_32.FileHeader.SizeOfOptionalHeader;
+	nt_characteristics = pe_nt_headers_32.FileHeader.Characteristics;
+
+}
+
 void PE32::parse_section_headers()
 {
 
 }
 
-void PE32::parse_nt_headers()
-{
-
-}
 
 void PE32::print_file_info()
 {
@@ -182,16 +200,22 @@ void PE32::print_dos_header_info()
 	fprintf(stdout, "======DOS Header======\n\n");
 	fprintf(stdout, "Magic number: 0x%04X\n", pe_dos_header.e_magic);
 	fprintf(stdout, "File address of new exe header: 0x%X\n", pe_dos_header.e_lfanew);
-	fprintf(stdout, "\n==========END==========\n\n");
+	fprintf(stdout, "\n==========END=========\n\n");
 
 }
 
 void PE32::print_dos_stub_info()
 {	
+
+	if (!rich_headers.exits) return;
+
 	// 打印Rich headers的信息
 	fprintf(stdout, "=====Rich Headers=====\n\n");
 	fprintf(stdout, "%-25s\tBuildID\t\tCount\t\tMeaning\n", "ProductName");
 	for (int i = 0; i < rich_headers.entries_num; i++) {
+		if (rich_headers.entries[i].r_prod_id >= __PRODID_NAME_NUM) {
+			rich_headers.entries[i].r_prod_id = 0; // 非法ID？重定向到Unknow
+		}
 		fprintf(stdout, "%-25s\t%d\t\t%d\t\t%d.%d.%d\n",
 			prod_ids_to_names[rich_headers.entries[i].r_prod_id],
 			rich_headers.entries[i].r_prod_id,
@@ -201,13 +225,40 @@ void PE32::print_dos_stub_info()
 			rich_headers.entries[i].r_count
 		);
 	}
-	fprintf(stdout, "\n==========END==========\n\n");
+	fprintf(stdout, "\n==========END=========\n\n");
 
 }
 
 void PE32::print_nt_headers_info()
 {
+	WORD temp_c, n;
 
+	fprintf(stdout, "======NT Headers======\n\n");
+
+	fprintf(stdout, "PE Signature: 0x%X\n\n", pe_nt_headers_32.Signature);
+
+	fprintf(stdout, "File Header:\n");
+	fprintf(stdout, " - Machine: %s (0x%04X)\n", 
+		translate_machine(pe_nt_headers_32.FileHeader.Machine),
+		pe_nt_headers_32.FileHeader.Machine);
+	fprintf(stdout, " - Sections Count: %d\n", nt_sections_cnt);
+	// fprintf(stdout, " - Time Date Stamp: %d\n", pe_nt_headers_32.FileHeader.TimeDateStamp);
+	fprintf(stdout, " - Size of Optional Header: %d\n", nt_optional_header_size);
+	fprintf(stdout, " - Characteristics: 0x%X\n", nt_characteristics);
+	// 进一步解析Characteritics
+	temp_c = nt_characteristics;
+	n = 0;
+	while (temp_c) {
+		if (temp_c & 1) {
+			fprintf(stdout, "    - 0x%X:\t %s\n", (1 << n), characteristics_names[n]);
+		}
+		temp_c = temp_c >> 1;
+		n++;
+	}
+
+	// TODO
+
+	fprintf(stdout, "\n==========END=========\n\n");
 }
 
 void PE32::print_section_headers_info()
