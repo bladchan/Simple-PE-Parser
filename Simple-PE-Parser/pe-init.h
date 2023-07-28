@@ -2,7 +2,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "pe-custom.h"
 #include "winntdef.h"
 
 // 用于验证PE文件的合法性

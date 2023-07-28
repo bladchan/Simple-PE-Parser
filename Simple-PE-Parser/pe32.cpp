@@ -15,6 +15,7 @@ PE32::PE32(char* path, FILE* fp) : file_path(path), pe_fp(fp)
 void PE32::print_info()
 {
 	print_dos_header_info();
+	print_dos_stub_info();
 }
 
 void PE32::parse_file()
@@ -42,7 +43,7 @@ void PE32::parse_dos_header()
 void PE32::parse_dos_stub()
 {
 	size_t alloc_size;
-	char* dos_stub_buffer;
+	char* dos_stub_buffer, * buf_ptr;
 	int i, start, end;
 	DWORD xor_key = 0;
 
@@ -83,7 +84,7 @@ void PE32::parse_dos_stub()
 			dos_stub_buffer[i + 2] == 'c' &&
 			dos_stub_buffer[i + 3] == 'h') {
 			// 找到 `Rich`
-			if (i + 8 >= alloc_size) {
+			if (i + 8 >= (int)alloc_size) {
 				// 处理潜在的越界读问题
 				fprintf(stderr, "Detect out bound read. Bad PE file!\n");
 				exit(-1);
@@ -110,7 +111,7 @@ void PE32::parse_dos_stub()
 	}
 	if (i < 0) {
 		fprintf(stderr, "Error: Bad PE file!\n");
-		exit(0);
+		exit(-1);
 	}
 
 	start = i;
@@ -124,7 +125,39 @@ void PE32::parse_dos_stub()
 	rich_headers.raw_data.data_size = alloc_size;
 	memcpy(rich_headers.raw_data.data_ptr, dos_stub_buffer + start, alloc_size);
 	free(dos_stub_buffer);
-	
+
+	// 删除首部"DanS + 3padding"和尾部"Rich + XOR key"
+	if((alloc_size - 24) % 8 == 0 && (alloc_size - 24) / 8 <= 0xffff)  // 限制一下最大rich header数
+		rich_headers.entries_num = (alloc_size - 24) / 8;
+	else {
+		fprintf(stderr, "Error: Bad PE file!\n");
+		exit(-1);
+	}
+
+	// 解析头部实体
+	rich_headers.entries = (PRICH_HEADER_ENTRY)malloc(sizeof(RICH_HEADER_ENTRY) * rich_headers.entries_num);
+	if (!rich_headers.entries) {
+		fprintf(stderr, "Error: Rich_headers.entries malloc failed!\n");
+		exit(-1);
+	}
+
+	buf_ptr = rich_headers.raw_data.data_ptr + 16;
+	for (i = 0; i < rich_headers.entries_num; i++) {
+
+		DWORD* temp = (DWORD*)buf_ptr;
+		rich_headers.entries[i].r_prod_id = (*temp >> 16) ^ (xor_key >> 16);
+		rich_headers.entries[i].r_build_id = (*temp & 0x0000ffff) ^ (xor_key & 0x0000ffff);
+		temp++;
+		rich_headers.entries[i].r_count = *temp ^ xor_key;
+		buf_ptr += 8;
+
+	}
+
+	rich_headers.exits = true;
+
+	// 酌情删除raw_data缓存的rich_headers原始数据
+	free(rich_headers.raw_data.data_ptr);
+
 }
 
 void PE32::parse_section_headers()
@@ -149,12 +182,26 @@ void PE32::print_dos_header_info()
 	fprintf(stdout, "======DOS Header======\n\n");
 	fprintf(stdout, "Magic number: 0x%04X\n", pe_dos_header.e_magic);
 	fprintf(stdout, "File address of new exe header: 0x%X\n", pe_dos_header.e_lfanew);
-	fprintf(stdout, "\n==========END==========\n");
+	fprintf(stdout, "\n==========END==========\n\n");
 
 }
 
 void PE32::print_dos_stub_info()
 {	
+	// 打印Rich headers的信息
+	fprintf(stdout, "=====Rich Headers=====\n\n");
+	fprintf(stdout, "%-25s\tBuildID\t\tCount\t\tMeaning\n", "ProductName");
+	for (int i = 0; i < rich_headers.entries_num; i++) {
+		fprintf(stdout, "%-25s\t%d\t\t%d\t\t%d.%d.%d\n",
+			prod_ids_to_names[rich_headers.entries[i].r_prod_id],
+			rich_headers.entries[i].r_prod_id,
+			rich_headers.entries[i].r_count,
+			rich_headers.entries[i].r_build_id,
+			rich_headers.entries[i].r_prod_id,
+			rich_headers.entries[i].r_count
+		);
+	}
+	fprintf(stdout, "\n==========END==========\n\n");
 
 }
 

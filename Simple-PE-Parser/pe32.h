@@ -1,5 +1,6 @@
 #pragma once
 #include "pe-init.h"
+#include "pe-custom.h"
 
 class PE32 {
 public:

@@ -1,5 +1,4 @@
 ﻿#include <iostream>
-#include "pe-init.h"
 #include "pe32.h"
 
 int main()
