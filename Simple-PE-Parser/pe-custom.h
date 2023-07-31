@@ -142,3 +142,55 @@ static const char* characteristics_names[] = {
 	"File should only be run on a UP machine.",
 	"Bytes of machine word are reversed."
 };
+
+static const char* translate_nt_optional_header_magic(WORD w) {
+	switch (w) {
+		case 0x010B:
+			return "NT32";
+		case 0x020B:
+			return "NT64";
+		case 0x0107:
+			return "ROM";
+		default:
+			return "Unknown";
+	}
+}
+
+static const char* translate_data_directory(int idx) {
+
+	switch (idx) {
+		case ___IMAGE_DIRECTORY_ENTRY_EXPORT:
+			return "Export Directory";
+		case ___IMAGE_DIRECTORY_ENTRY_IMPORT:
+			return "Import Directory";
+		case ___IMAGE_DIRECTORY_ENTRY_RESOURCE:
+			return "Resource Directory";
+		case ___IMAGE_DIRECTORY_ENTRY_EXCEPTION:
+			return "Exception Directory";
+		case ___IMAGE_DIRECTORY_ENTRY_SECURITY:
+			return "Security Directory";
+		case ___IMAGE_DIRECTORY_ENTRY_BASERELOC:
+			return "Base Relocation Table";
+		case ___IMAGE_DIRECTORY_ENTRY_DEBUG:
+			return "Debug Directory";
+		case ___IMAGE_DIRECTORY_ENTRY_ARCHITECTURE:
+			return "Architecture Specific Data";
+		case ___IMAGE_DIRECTORY_ENTRY_GLOBALPTR:
+			return "RVA of GlobalPtr";
+		case ___IMAGE_DIRECTORY_ENTRY_TLS:
+			return "TLS Directory";
+		case ___IMAGE_DIRECTORY_ENTRY_LOAD_CONFIG:
+			return "Load Configuration Directory";
+		case ___IMAGE_DIRECTORY_ENTRY_BOUND_IMPORT:
+			return "Bound Import Directory";
+		case ___IMAGE_DIRECTORY_ENTRY_IAT:
+			return "Import Address Table";
+		case ___IMAGE_DIRECTORY_ENTRY_DELAY_IMPORT:
+			return "Delay Load Import Descriptors";
+		case ___IMAGE_DIRECTORY_ENTRY_COM_DESCRIPTOR:
+			return ".NET header";
+		default:
+			return "Unknown";
+	}
+
+}
