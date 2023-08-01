@@ -18,6 +18,30 @@ void PE32::print_info()
 	print_dos_stub_info();
 	print_nt_headers_info();
 	print_section_headers_info();
+	print_import_table_info();
+}
+
+DWORD PE32::va_to_raw(DWORD va)
+{
+	int i, offset;
+
+	// 先找到该va归属于哪一个section
+	for (i = 0; i < nt_sections_cnt; i++) {
+		if (va >= section_headers[i].VirtualAddress &&
+			va < section_headers[i].VirtualAddress + section_headers[i].Misc.VirtualSize) {
+			break;
+		}
+	}
+
+	if (i == nt_sections_cnt) {
+		fprintf(stderr, "Error: VA is out of bound! Bad PE file!\n");
+		exit(-1);
+	}
+
+	// 地址转换
+	offset = va - section_headers[i].VirtualAddress;
+	return section_headers[i].PointerToRawData + offset;
+
 }
 
 void PE32::parse_file()
@@ -33,6 +57,9 @@ void PE32::parse_file()
 
 	// 解析Section Headers
 	parse_section_headers();
+
+	// 解析Import directory
+	parse_import_directory();
 
 }
 
@@ -185,6 +212,8 @@ void PE32::parse_nt_headers()
 	nt_characteristics = pe_nt_headers_32.FileHeader.Characteristics;
 	nt_optional_headers = &pe_nt_headers_32.OptionalHeader;
 	pe_header_size = nt_optional_headers->SizeOfHeaders;
+	import_dir_table_rva = nt_optional_headers->DataDirectory[___IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress;
+	import_dir_table_size = nt_optional_headers->DataDirectory[___IMAGE_DIRECTORY_ENTRY_IMPORT].Size;
 
 }
 
@@ -213,6 +242,46 @@ void PE32::parse_section_headers()
 		fprintf(stderr, "Error: Bad PE file!\n");
 		exit(-1);
 	}
+
+}
+
+void PE32::parse_import_directory()
+{
+
+	DWORD raw_offset, entry_num, read_size;
+
+	// 先检查import_dir_table_size的合法性，拒绝非法PE文件
+	if (import_dir_table_size % sizeof(___IMAGE_IMPORT_DESCRIPTOR) != 0) {
+		fprintf(stderr, "Error: Wrong Import Directory size. Bad PE file!\n");
+		exit(-1);
+	}
+
+	entry_num = import_dir_table_size / sizeof(___IMAGE_IMPORT_DESCRIPTOR);
+	// 这里需要注意一下，导入目录表最后一个实体为全0填充
+	// 这里其实没必要读取最后一个实体的内容
+	entry_num = entry_num - 1;
+
+	if (entry_num > 0xffff) {
+		fprintf(stderr, "Error: Too many import entries!");
+		exit(-1);
+	}
+
+	raw_offset = va_to_raw(import_dir_table_rva);
+	fseek(pe_fp, raw_offset, SEEK_SET);
+
+	import_dir_table_entries = (___PIMAGE_IMPORT_DESCRIPTOR)malloc(sizeof(___IMAGE_IMPORT_DESCRIPTOR) * entry_num);
+	if (!import_dir_table_entries) {
+		fprintf(stderr, "Error: Import_dir_table malloc failed!\n");
+		exit(-1);
+	}
+	read_size = fread(import_dir_table_entries, sizeof(___IMAGE_IMPORT_DESCRIPTOR), entry_num, pe_fp);
+
+	if (read_size != entry_num) {
+		fprintf(stderr, "Error: Bad PE file!\n");
+		exit(-1);
+	}
+
+	import_dir_table_entries_num = entry_num;
 
 }
 
@@ -303,8 +372,6 @@ void PE32::print_nt_headers_info()
 		fprintf(stdout, "    - %s ==> Address: 0x%X, Size: 0x%X\n", translate_data_directory(i), nt_optional_headers->DataDirectory[i].VirtualAddress, nt_optional_headers->DataDirectory[i].Size);
 	}
 
-	import_dir_table_rva = nt_optional_headers->DataDirectory[___IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress;
-
 	fprintf(stdout, "\n==========END=========\n\n");
 
 }
@@ -335,6 +402,81 @@ void PE32::print_section_headers_info()
 		fprintf(stdout, "    - Raw Data's Size: 0x%X\n", section_headers[i].SizeOfRawData);
 		fprintf(stdout, "    - Characteristics: 0x%X\n\n", section_headers[i].Characteristics);
 
+	}
+
+	fprintf(stdout, "\n==========END=========\n\n");
+
+}
+
+void PE32::print_import_table_info()
+{
+
+	DWORD i, j, name_size, name_rva;
+	char* name_tmp, ch = 1;
+	___IMAGE_IMPORT_BY_NAME hint;
+
+	fprintf(stdout, "======Import table====\n\n");
+
+	for (i = 0; i < import_dir_table_entries_num; i++) {
+
+		name_rva = import_dir_table_entries[i].Name;
+		fseek(pe_fp, va_to_raw(name_rva), SEEK_SET);
+		
+		// 确定名字的长度
+		name_size = 0;
+		ch = fgetc(pe_fp);
+		while (ch != EOF && ch != 0) {
+			if (++name_size > 256) { 
+				// 拒绝名称大于256的DLL名字（对非法PE的检查）
+				fprintf(stderr, "Error: DLL's name too long?!\n");
+				exit(-1);
+			}
+			ch = fgetc(pe_fp);
+		}
+		
+		name_tmp = (char*)malloc(name_size + 1);
+		if (!name_tmp) {
+			fprintf(stderr, "Error: Name_tmp malloc failed!\n");
+			exit(-1);
+		}
+		name_tmp[name_size] = 0;
+		fseek(pe_fp, va_to_raw(name_rva), SEEK_SET);
+		fread(name_tmp, sizeof(char), name_size, pe_fp);
+		fprintf(stdout, "  * %s:\n\n", name_tmp);
+		free(name_tmp);
+		fprintf(stdout, "    - Import Lookup Table (ILT): 0x%X (RVA), 0x%X (RAW)\n",
+			import_dir_table_entries[i].DUMMYUNIONNAME.OriginalFirstThunk,
+			va_to_raw(import_dir_table_entries[i].DUMMYUNIONNAME.OriginalFirstThunk));
+		fprintf(stdout, "    - Import Address Table (IAT): 0x%X (RVA), 0x%X (RAW)\n",
+			import_dir_table_entries[i].FirstThunk,
+			va_to_raw(import_dir_table_entries[i].FirstThunk));
+		fprintf(stdout, "    - Bound?: %s\n", import_dir_table_entries[i].TimeDateStamp ? "TRUE" : "FALSE");
+
+
+		// ILT和IAT值在PE加载前是一样的，随便读取哪一个都行
+		// 解析具体函数名
+	    // https://learn.microsoft.com/zh-cn/windows/win32/debug/pe-format#the-idata-section
+
+		fprintf(stdout, "    - Entries: \n\n");
+
+		for (j = 0; ; j++) {
+			fseek(pe_fp, va_to_raw(import_dir_table_entries[i].FirstThunk + j * sizeof(DWORD)), SEEK_SET);
+			fread(&name_rva, sizeof(DWORD), 1, pe_fp);
+			if (name_rva == 0) break;
+			if (!(name_rva & 0x80000000)) {
+				fseek(pe_fp, va_to_raw(name_rva), SEEK_SET);
+				fread(&hint, sizeof(___IMAGE_IMPORT_BY_NAME), 1, pe_fp);
+				hint.Name[99] = 0; // 防止越界读
+				fprintf(stdout, "       [%02d] Name: %s\n            Hint: 0x%X\n            Call via: 0x%X (RVA)\n",
+					j + 1, hint.Name, hint.Hint, 
+					import_dir_table_entries[i].FirstThunk + j * sizeof(DWORD));
+			}
+			else {
+				// 按照序号导入
+				fprintf(stdout, "       [%d] Ordinal: 0x%X\n", j + 1, name_rva & 0xffff);
+			}
+		}
+		fprintf(stdout, "\n");
 	}
 
 	fprintf(stdout, "\n==========END=========\n\n");
