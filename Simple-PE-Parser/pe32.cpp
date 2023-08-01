@@ -247,6 +247,7 @@ void PE32::parse_section_headers()
 
 void PE32::parse_import_directory()
 {
+	if (!import_dir_table_size) return;
 
 	DWORD raw_offset, entry_num, read_size;
 
@@ -410,6 +411,11 @@ void PE32::print_section_headers_info()
 
 void PE32::print_import_table_info()
 {
+	if (!import_dir_table_size) {
+		fprintf(stdout, "====No Import table===\n\n");
+		fprintf(stdout, "\n==========END=========\n\n");
+		return;
+	}
 
 	DWORD i, j, name_size, name_rva;
 	char* name_tmp, ch = 1;
@@ -473,7 +479,7 @@ void PE32::print_import_table_info()
 			}
 			else {
 				// ∞¥’’–Ú∫≈µº»Î
-				fprintf(stdout, "       [%d] Ordinal: 0x%X\n", j + 1, name_rva & 0xffff);
+				fprintf(stdout, "       [%02d] Ordinal: 0x%X\n", j + 1, name_rva & 0xffff);
 			}
 		}
 		fprintf(stdout, "\n");

@@ -28,6 +28,8 @@ private:
 	DWORD pe_header_size;
 	DWORD import_dir_table_rva;
 	DWORD import_dir_table_size;
+	DWORD export_dir_table_rva;
+	DWORD export_dir_table_size;
 
 	// ¸¨Öú±äÁ¿
 	DWORD import_dir_table_entries_num;
