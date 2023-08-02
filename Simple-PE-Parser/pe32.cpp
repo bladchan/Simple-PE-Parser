@@ -19,6 +19,7 @@ void PE32::print_info()
 	print_nt_headers_info();
 	print_section_headers_info();
 	print_import_table_info();
+	print_export_table_info();
 }
 
 DWORD PE32::va_to_raw(DWORD va)
@@ -60,6 +61,9 @@ void PE32::parse_file()
 
 	// 解析Import directory
 	parse_import_directory();
+
+	// 解析Export directory
+	parse_export_directory();
 
 }
 
@@ -214,6 +218,8 @@ void PE32::parse_nt_headers()
 	pe_header_size = nt_optional_headers->SizeOfHeaders;
 	import_dir_table_rva = nt_optional_headers->DataDirectory[___IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress;
 	import_dir_table_size = nt_optional_headers->DataDirectory[___IMAGE_DIRECTORY_ENTRY_IMPORT].Size;
+	export_dir_table_rva = nt_optional_headers->DataDirectory[___IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress;
+	export_dir_table_size = nt_optional_headers->DataDirectory[___IMAGE_DIRECTORY_ENTRY_EXPORT].Size;
 
 }
 
@@ -247,7 +253,7 @@ void PE32::parse_section_headers()
 
 void PE32::parse_import_directory()
 {
-	if (!import_dir_table_size) return;
+	if (!import_dir_table_size || !import_dir_table_rva) return;
 
 	DWORD raw_offset, entry_num, read_size;
 
@@ -283,6 +289,22 @@ void PE32::parse_import_directory()
 	}
 
 	import_dir_table_entries_num = entry_num;
+
+}
+
+void PE32::parse_export_directory()
+{
+	size_t read_size;
+	if (!export_dir_table_size || !export_dir_table_rva) return;
+
+	fseek(pe_fp, va_to_raw(export_dir_table_rva), SEEK_SET);
+	read_size = fread(&export_dir_table, sizeof(___IMAGE_EXPORT_DIRECTORY), 1, pe_fp);
+	if (read_size != 1) {
+		fprintf(stderr, "Error: Bad PE file!\n");
+		exit(-1);
+	}
+
+	// 其他操作就让print函数去完成:))
 
 }
 
@@ -411,8 +433,8 @@ void PE32::print_section_headers_info()
 
 void PE32::print_import_table_info()
 {
-	if (!import_dir_table_size) {
-		fprintf(stdout, "====No Import table===\n\n");
+	if (!import_dir_table_size || !import_dir_table_rva) {
+		fprintf(stdout, "====No import table===\n\n");
 		fprintf(stdout, "\n==========END=========\n\n");
 		return;
 	}
@@ -484,6 +506,168 @@ void PE32::print_import_table_info()
 		}
 		fprintf(stdout, "\n");
 	}
+
+	fprintf(stdout, "\n==========END=========\n\n");
+
+}
+
+void PE32::print_export_table_info()
+{
+	size_t read_size;
+	DWORD name_offset, name_size, i;
+	DWORD* name_p_table, *export_address_table;
+	WORD* ord_table;
+	char *name_tmp, ch;
+	PEXPORT_ENTRY export_entries;
+
+	if (!export_dir_table_size || !export_dir_table_rva) {
+		fprintf(stdout, "====No export table===\n\n");
+		fprintf(stdout, "\n==========END=========\n\n");
+		return;
+	}
+
+	fprintf(stdout, "======Export table====\n\n");
+
+	// 先解析导出目录表
+	// 1. 先解析导出表名称
+	name_offset = va_to_raw(export_dir_table.Name);
+	fseek(pe_fp, name_offset, SEEK_SET);
+	
+	name_size = 0;
+	ch = fgetc(pe_fp);
+	while (ch != EOF && ch != 0) {
+		if (++name_size > 256) {
+			fprintf(stderr, "Error: DLL's name too long?!\n");
+			exit(-1);
+		}
+		ch = fgetc(pe_fp);
+	}
+
+	name_tmp = (char*)malloc(name_size + 1);
+	if (!name_tmp) {
+		fprintf(stderr, "Error: Name_tmp malloc failed!\n");
+		exit(-1);
+	}
+	name_tmp[name_size] = 0;
+	fseek(pe_fp, name_offset, SEEK_SET);
+	fread(name_tmp, sizeof(char), name_size, pe_fp);
+
+	fprintf(stdout, " - Name: %s (raw offset: 0x%X)\n", name_tmp, name_offset);
+	free(name_tmp);
+
+	// 2.解析各个导出项
+	// 先构造自定义的实体
+
+	if (export_dir_table.NumberOfFunctions < export_dir_table.NumberOfNames) {
+		fprintf(stderr, "Error: Seriously?! Bad PE file!\n");
+		exit(-1);
+	}
+
+	if (export_dir_table.NumberOfFunctions > 0xFFFF) {
+		fprintf(stderr, "Error: Too many functions exported (>65535).\n");
+		exit(-1);
+	}
+
+	export_entries = (PEXPORT_ENTRY)malloc(sizeof(EXPORT_ENTRY) * export_dir_table.NumberOfFunctions);
+
+	// 解析导出地址表
+	export_address_table = (DWORD*)malloc(sizeof(DWORD) * export_dir_table.NumberOfFunctions);
+	fseek(pe_fp, va_to_raw(export_dir_table.AddressOfFunctions), SEEK_SET);
+	read_size = fread(export_address_table, sizeof(DWORD), export_dir_table.NumberOfFunctions, pe_fp);
+
+	if (read_size ^ export_dir_table.NumberOfFunctions) {
+		fprintf(stderr, "Error: Bad PE file!\n");
+		exit(-1);
+	}
+
+	// 初始化
+	for (i = 0; i < export_dir_table.NumberOfFunctions; i++) {
+		export_entries[i].ordinal = export_dir_table.Base + i;
+		export_entries[i].function_rva = export_address_table[i];
+		export_entries[i].name_rva = 0;
+	}
+
+	free(export_address_table);
+
+	// 解析名称指针表和序号表
+
+	name_p_table = (DWORD*)malloc(sizeof(DWORD) * export_dir_table.NumberOfNames);
+	ord_table = (WORD*)malloc(sizeof(WORD) * export_dir_table.NumberOfNames);
+
+	if (!name_p_table || !ord_table) {
+		fprintf(stderr, "Error: Name_p_table or ord_table malloc failed!\n");
+		exit(-1);
+	}
+
+	fseek(pe_fp, va_to_raw(export_dir_table.AddressOfNames), SEEK_SET);
+	read_size = fread(name_p_table, sizeof(DWORD), export_dir_table.NumberOfNames, pe_fp);
+
+	fseek(pe_fp, va_to_raw(export_dir_table.AddressOfNameOrdinals), SEEK_SET);
+	read_size ^= fread(ord_table, sizeof(WORD), export_dir_table.NumberOfNames, pe_fp);
+
+	if (read_size) {
+		fprintf(stderr, "Error: Bad PE file!\n");
+		exit(-1);
+	}
+	
+	for (i = 0; i < export_dir_table.NumberOfNames; i++) {
+
+		WORD offset = *(WORD*)(ord_table + i);
+
+		if (offset > export_dir_table.NumberOfFunctions) {
+			fprintf(stderr, "Error: Bad PE file!\n");
+			exit(-1);
+		}
+
+		export_entries[offset].name_rva = *(DWORD*)(name_p_table + i);
+		name_offset = va_to_raw(*(DWORD*)(name_p_table + i));
+		fseek(pe_fp, name_offset, SEEK_SET);
+
+		name_size = 0;
+		ch = fgetc(pe_fp);
+		while (ch != EOF && ch != 0) {
+			if (++name_size > 99) {
+				fprintf(stderr, "Error: Function's name too long?!\n");
+				exit(-1);
+			}
+			ch = fgetc(pe_fp);
+		}
+
+		name_tmp = (char*)malloc(name_size + 1);
+		if (!name_tmp) {
+			fprintf(stderr, "Error: Name_tmp malloc failed!\n");
+			exit(-1);
+		}
+		name_tmp[name_size] = 0;
+		fseek(pe_fp, name_offset, SEEK_SET);
+		fread(name_tmp, sizeof(char), name_size, pe_fp);
+
+		memcpy(export_entries[offset].name, name_tmp, name_size + 1);
+		free(name_tmp);
+
+	}
+	
+	free(name_p_table);
+	free(ord_table);
+
+	// 打印
+	fprintf(stdout, " - Export Entries:\n\n");
+	for (i = 0; i < export_dir_table.NumberOfFunctions; i++) {
+		
+		if (!export_entries[i].function_rva)
+			memcpy(export_entries[i].name, "-", 2);	
+		else
+			export_entries[i].name[99] = 0;  // 防止越界读
+
+		fprintf(stdout, "    [%02d] Ordinal: %d\n"
+			"           Function RVA: 0x%X\n"
+			"           Name: %s (RVA: 0x%X)\n\n",
+			i + 1, export_entries[i].ordinal, export_entries[i].function_rva, 
+			export_entries[i].name, export_entries[i].name_rva);
+	}
+	
+
+	free(export_entries);
 
 	fprintf(stdout, "\n==========END=========\n\n");
 

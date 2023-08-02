@@ -189,3 +189,17 @@ typedef struct __IMAGE_SECTION_HEADER {
     WORD    NumberOfLinenumbers;
     DWORD   Characteristics;
 } ___IMAGE_SECTION_HEADER, * ___PIMAGE_SECTION_HEADER;
+
+typedef struct __IMAGE_EXPORT_DIRECTORY {
+    DWORD	Characteristics;
+    DWORD	TimeDateStamp;
+    WORD	MajorVersion;
+    WORD	MinorVersion;
+    DWORD	Name;
+    DWORD	Base;
+    DWORD	NumberOfFunctions;
+    DWORD	NumberOfNames;
+    DWORD	AddressOfFunctions;
+    DWORD	AddressOfNames;
+    DWORD	AddressOfNameOrdinals;
+} ___IMAGE_EXPORT_DIRECTORY, * ___PIMAGE_EXPORT_DIRECTORY;

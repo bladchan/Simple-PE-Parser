@@ -19,6 +19,7 @@ private:
 	___PIMAGE_OPTIONAL_HEADER32 nt_optional_headers;
 	___PIMAGE_SECTION_HEADER    section_headers;
 	___PIMAGE_IMPORT_DESCRIPTOR import_dir_table_entries;
+	___IMAGE_EXPORT_DIRECTORY   export_dir_table;
 
 	// PE相关头中的偏移量
 	LONG  nt_headers_offset;
@@ -47,6 +48,7 @@ private:
 	void parse_nt_headers();
 	void parse_section_headers();
 	void parse_import_directory();
+	void parse_export_directory();
 
 	// 打印相关的函数
 	void print_file_info();
@@ -55,5 +57,6 @@ private:
 	void print_nt_headers_info();
 	void print_section_headers_info();
 	void print_import_table_info();
+	void print_export_table_info();
 
 };

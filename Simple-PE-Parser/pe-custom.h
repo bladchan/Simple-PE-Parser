@@ -25,6 +25,13 @@ typedef struct __RICH_HEADER {
 	bool			   exits;
 }RICH_HEADER, * PRICH_HEADER;
 
+typedef struct __EXPORT_ENTRY {
+	DWORD  ordinal;
+	DWORD function_rva;
+	DWORD name_rva;
+	char  name[100];
+}EXPORT_ENTRY, *PEXPORT_ENTRY;
+
 /* 
  *  Copy from
  *  https://github.com/hasherezade/bearparser/blob/65d6417b1283eb64237141ee0c865bdf0f13ac73/parser/pe/RichHdrWrapper.cpp
