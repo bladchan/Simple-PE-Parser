@@ -20,8 +20,10 @@ private:
 	___PIMAGE_SECTION_HEADER    section_headers;
 	___PIMAGE_IMPORT_DESCRIPTOR import_dir_table_entries;
 	___IMAGE_EXPORT_DIRECTORY   export_dir_table;
+	___PIMAGE_BASE_RELOCATION   basereloc_table;
 
-	// PE相关头中的偏移量
+	// PE相关头中的偏移量和变量
+	WORD  nt_headers_machine;
 	LONG  nt_headers_offset;
 	WORD  nt_sections_cnt;
 	WORD  nt_optional_header_size;
@@ -31,9 +33,12 @@ private:
 	DWORD import_dir_table_size;
 	DWORD export_dir_table_rva;
 	DWORD export_dir_table_size;
+	DWORD basereloc_dir_table_rva;
+	DWORD basereloc_dir_table_size;
 
 	// 辅助变量
 	DWORD import_dir_table_entries_num;
+	DWORD basereloc_table_num;
 
 	// 与Rich headers有关的相关变量
 	RICH_HEADER rich_headers;
@@ -49,6 +54,7 @@ private:
 	void parse_section_headers();
 	void parse_import_directory();
 	void parse_export_directory();
+	void parse_basereloc_table();
 
 	// 打印相关的函数
 	void print_file_info();
@@ -58,5 +64,6 @@ private:
 	void print_section_headers_info();
 	void print_import_table_info();
 	void print_export_table_info();
+	void print_basereloc_table_info();
 
 };

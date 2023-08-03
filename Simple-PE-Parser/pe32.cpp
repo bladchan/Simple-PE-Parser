@@ -20,6 +20,7 @@ void PE32::print_info()
 	print_section_headers_info();
 	print_import_table_info();
 	print_export_table_info();
+	print_basereloc_table_info();
 }
 
 DWORD PE32::va_to_raw(DWORD va)
@@ -64,6 +65,9 @@ void PE32::parse_file()
 
 	// 解析Export directory
 	parse_export_directory();
+
+	// 解析Base Relocation Table
+	parse_basereloc_table();
 
 }
 
@@ -220,6 +224,8 @@ void PE32::parse_nt_headers()
 	import_dir_table_size = nt_optional_headers->DataDirectory[___IMAGE_DIRECTORY_ENTRY_IMPORT].Size;
 	export_dir_table_rva = nt_optional_headers->DataDirectory[___IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress;
 	export_dir_table_size = nt_optional_headers->DataDirectory[___IMAGE_DIRECTORY_ENTRY_EXPORT].Size;
+	basereloc_dir_table_rva = nt_optional_headers->DataDirectory[___IMAGE_DIRECTORY_ENTRY_BASERELOC].VirtualAddress;
+	basereloc_dir_table_size = nt_optional_headers->DataDirectory[___IMAGE_DIRECTORY_ENTRY_BASERELOC].Size;
 
 }
 
@@ -308,6 +314,67 @@ void PE32::parse_export_directory()
 
 }
 
+void PE32::parse_basereloc_table()
+{
+	size_t read_size;
+	DWORD basereloc_offset, basereloc_entry_num, i;
+	int left_size;
+	___IMAGE_BASE_RELOCATION tmp;
+
+	if (!basereloc_dir_table_rva || !basereloc_dir_table_size) return;
+
+	basereloc_offset = va_to_raw(basereloc_dir_table_rva);
+	fseek(pe_fp, basereloc_offset, SEEK_SET);
+	left_size = basereloc_dir_table_size;
+	basereloc_entry_num = 0;
+	
+	while (1) {
+		
+		read_size = fread(&tmp, sizeof(___IMAGE_BASE_RELOCATION), 1, pe_fp);
+		if (read_size != 1) {
+			fprintf(stderr, "Error: Bad PE file!\n");
+			exit(-1);
+		}
+
+		if (!tmp.VirtualAddress && !tmp.SizeOfBlock) break;
+
+		basereloc_entry_num++;
+		left_size -= tmp.SizeOfBlock;
+		if (left_size < 0) {
+			fprintf(stderr, "Error: Out of base relocation table's size. Maybe Bad PE file!\n");
+			exit(-1);
+		}
+		
+		basereloc_offset += tmp.SizeOfBlock;
+		fseek(pe_fp, basereloc_offset, SEEK_SET);
+
+	}
+
+	if (basereloc_entry_num > 0xFFFFFF) {
+		fprintf(stderr, "Error: Too many base relocation entries!\n");
+		exit(-1);
+	}
+
+	basereloc_table_num = basereloc_entry_num;
+
+	basereloc_table =
+		(___PIMAGE_BASE_RELOCATION)malloc(sizeof(___IMAGE_BASE_RELOCATION) * basereloc_entry_num);
+	if (!basereloc_table) {
+		fprintf(stderr, "Error: Basereloc_table malloc failed!\n");
+		exit(-1);
+	}
+
+	basereloc_offset = va_to_raw(basereloc_dir_table_rva);
+	fseek(pe_fp, basereloc_offset, SEEK_SET);
+
+	for (i = 0; i < basereloc_entry_num; i++) {
+		fread(&basereloc_table[i], sizeof(___IMAGE_BASE_RELOCATION), 1, pe_fp);
+		basereloc_offset += basereloc_table[i].SizeOfBlock;
+		fseek(pe_fp, basereloc_offset, SEEK_SET);
+	}
+
+}
+
 
 void PE32::print_file_info()
 {
@@ -362,6 +429,7 @@ void PE32::print_nt_headers_info()
 	fprintf(stdout, " - Machine: %s (0x%04X)\n", 
 		translate_machine(pe_nt_headers_32.FileHeader.Machine),
 		pe_nt_headers_32.FileHeader.Machine);
+	nt_headers_machine = pe_nt_headers_32.FileHeader.Machine;
 	fprintf(stdout, " - Sections Count: %d\n", nt_sections_cnt);
 	// fprintf(stdout, " - Time Date Stamp: %d\n", pe_nt_headers_32.FileHeader.TimeDateStamp);
 	fprintf(stdout, " - Size of Optional Header: %d\n", nt_optional_header_size);
@@ -668,6 +736,46 @@ void PE32::print_export_table_info()
 	
 
 	free(export_entries);
+
+	fprintf(stdout, "\n==========END=========\n\n");
+
+}
+
+void PE32::print_basereloc_table_info()
+{
+	DWORD i, j, basereloc_offset, block_entries_num;
+	WORD  value;
+	if (!basereloc_dir_table_rva || !basereloc_dir_table_size) {
+		fprintf(stdout, "===No base relocation table===\n\n");
+		fprintf(stdout, "\n==========END=========\n\n");
+		return;
+	}
+
+	fprintf(stdout, "===Base relocation table===\n\n");
+
+	fseek(pe_fp, va_to_raw(basereloc_dir_table_rva), SEEK_SET);
+
+	for (i = 0; i < basereloc_table_num; i++) {
+
+		block_entries_num = (basereloc_table[i].SizeOfBlock - 8) / 2;
+
+		fprintf(stdout, "  * Block %02d:\n\n", i + 1);
+		fprintf(stdout, "    - Page RVA: 0x%X\n", basereloc_table[i].VirtualAddress);
+		fprintf(stdout, "    - Block Size: 0x%X\n", basereloc_table[i].SizeOfBlock);
+		fprintf(stdout, "    - Entries [total %d]:\n\n", block_entries_num);
+
+		fseek(pe_fp, 8, SEEK_CUR);
+
+		for (j = 0; j < block_entries_num; j++) {
+			// 请注意，fread遇到0x1A (ctrl-Z) 终止，读入文件需要以二进制的形式打开
+			fread(&value, sizeof(WORD), 1, pe_fp);
+			fprintf(stdout, "       [%03d] Value: 0x%04X\n", j+1, value);
+			fprintf(stdout, "             Type : %s\n", translate_block_entry_types((value & 0xf000) >> 12, nt_headers_machine));
+			fprintf(stdout, "  Offset from Page: 0x%X\n", value & 0x0fff);
+			fprintf(stdout, "         Reloc RVA: 0x%X\n\n", basereloc_table[i].VirtualAddress + (value & 0x0fff));
+		}
+
+	}
 
 	fprintf(stdout, "\n==========END=========\n\n");
 

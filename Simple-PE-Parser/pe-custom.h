@@ -118,11 +118,37 @@ static const char* prod_ids_to_names[__PRODID_NAME_NUM] = {
 static const char* translate_machine(WORD w) {
 	switch (w) {
 		case 0x014C:
-			return "x86";
+			return "Intel 386";
 		case 0x8664:
 			return "x64";
 		case 0x0200:
 			return "Intel Itanium";
+		case 0x5032:
+			return "RISC-V 32-bit address space";
+		case 0x5064:
+			return "RISC-V 64-bit address space";
+		case 0x5128:
+			return "RISC-V 128-bit address space";
+		case 0x166:
+			return "MIPS little endian";
+		case 0x266:
+			return "MIPS16";
+		case 0x366:
+			return "MIPS with FPU";
+		case 0x466:
+			return "MIPS16 with FPU";
+		case 0x1c0:
+			return "ARM little endian";
+		case 0xaa64:
+			return "ARM64 little endian";
+		case 0x1c4:
+			return "ARM Thumb-2 little endian";
+		case 0x1c2:
+			return "Thumb";
+		case 0x6232:
+			return "LoongArch 32-bit processor family";
+		case 0x6264:
+			return "LoongArch 64-bit processor family";
 		default:
 			return "Unknow";
 	}
@@ -201,3 +227,79 @@ static const char* translate_data_directory(int idx) {
 	}
 
 }
+
+static const char* translate_block_entry_types(WORD type, WORD machine) {
+	/*
+	"Padding (skipped)",
+	"High WORD of 32-bit field",
+	"Low  WORD of 32-bit field",
+	"32 bit field",
+	"HighAdj",
+	"XXX",
+	"Reserved",
+	"XXX",
+	"XXX",
+	"XXX",
+	"64 bit field"
+	*/
+	BYTE flag = 0;
+	WORD mips_family[] = {
+		0x166, 0x266, 0x366, 0x466
+	};
+	WORD arm_family[] = {
+		0x1c0, 0xaa64, 0x1c4, 0x1c2
+	};
+	WORD risc_v_family[] = {
+		0x5032, 0x5064, 0x5128
+	};
+	for (auto w : mips_family)
+		if (w == machine) flag = 1;
+	if (!flag) {
+		for (auto w : arm_family)
+			if (w == machine) flag = 2;
+	}
+	if (!flag) {
+		for (auto w : risc_v_family)
+			if (w == machine) flag = 3;
+	}
+
+	switch (type) {
+		case 0:
+			return "Padding (skipped)";
+		case 1:
+			return "High WORD of 32-bit field";
+		case 2:
+			return "Low  WORD of 32-bit field";
+		case 3:
+			return "32 bit field";
+		case 4:
+			return "HighAdj";
+		case 5: {
+			if (flag == 1) return "MIPS JMPADDR";
+			if (flag == 2) return "ARM MOV32";
+			if (flag == 3) return "RISCV_HIGH20";
+			return "Invalid";
+		}
+		case 6:
+			return "Reversed";
+		case 7: {
+			if (machine == 0x1c2 || machine == 0x1c4) return "THUMB_MOV32";
+			if (flag == 3) return "RISCV_LOW12I";
+			return "Invalid";
+		}
+		case 8: {
+			if (flag == 3) return "RISCV_LOW12S";
+			if (machine == 0x6232) return "LOONGARCH32_MARK_LA";
+			if (machine == 0x6264) return "LOONGARCH64_MARK_LA";
+			return "Invalid";
+		}
+		case 9: {
+			if (flag == 1) return "MIPS_JMPADDR16";
+			return "Invalid";
+		}
+		case 10:
+			return "64 bit field";
+		default:
+			return "Invalid";
+	}
+};
