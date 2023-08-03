@@ -141,13 +141,16 @@
   <ItemGroup>
     <ClCompile Include="pe-init.cpp" />
     <ClCompile Include="pe32.cpp" />
+    <ClCompile Include="pe64.cpp" />
     <ClCompile Include="simple-pe-parser.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pe-custom.h" />
     <ClInclude Include="pe-init.h" />
     <ClInclude Include="pe32.h" />
+    <ClInclude Include="pe64.h" />
     <ClInclude Include="winntdef.h" />
+    <ClInclude Include="pe.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

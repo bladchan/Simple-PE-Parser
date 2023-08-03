@@ -24,6 +24,9 @@
     <ClCompile Include="pe-init.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
+    <ClCompile Include="pe64.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="winntdef.h">
@@ -36,6 +39,12 @@
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="pe-init.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="pe64.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="pe.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>

@@ -1,9 +1,9 @@
-#include "pe32.h"
+#include "pe64.h"
 
-PE32::PE32(char* path, FILE* fp) : file_path(path), pe_fp(fp) 
+PE64::PE64(char* path, FILE* fp) : file_path(path), pe_fp(fp) 
 {
 
-	if (!fp || pe_validate(fp) != 32) {
+	if (!fp || pe_validate(fp) != 64) {
 		// 错误的API调用，直接退出解析过程！
 		// 可能会冗余，仅用于保持API的鲁棒性
 		exit(-1);
@@ -13,7 +13,7 @@ PE32::PE32(char* path, FILE* fp) : file_path(path), pe_fp(fp)
 
 }
 
-void PE32::print_info()
+void PE64::print_info()
 {
 	print_file_info();
 	print_dos_header_info();
@@ -24,9 +24,10 @@ void PE32::print_info()
 	print_export_table_info();
 	print_basereloc_table_info();
 	print_resources_table_info();
+
 }
 
-DWORD PE32::va_to_raw(DWORD va)
+DWORD PE64::va_to_raw(DWORD va)
 {
 	int i, offset;
 
@@ -49,7 +50,7 @@ DWORD PE32::va_to_raw(DWORD va)
 
 }
 
-void PE32::parse_file()
+void PE64::parse_file()
 {
 	// 解析DOS Header
 	parse_dos_header();
@@ -77,7 +78,7 @@ void PE32::parse_file()
 
 }
 
-void PE32::parse_dos_header()
+void PE64::parse_dos_header()
 {
 	
 	fseek(pe_fp, 0, SEEK_SET);
@@ -89,7 +90,7 @@ void PE32::parse_dos_header()
 
 }
 
-void PE32::parse_dos_stub()
+void PE64::parse_dos_stub()
 {
 	size_t alloc_size;
 	char* dos_stub_buffer, * buf_ptr;
@@ -209,22 +210,22 @@ void PE32::parse_dos_stub()
 
 }
 
-void PE32::parse_nt_headers()
+void PE64::parse_nt_headers()
 {
 	size_t read_size;
 
 	fseek(pe_fp, nt_headers_offset, SEEK_SET);
-	read_size = fread(&pe_nt_headers_32, sizeof(___IMAGE_NT_HEADERS32), 1, pe_fp);
+	read_size = fread(&pe_nt_headers_64, sizeof(___IMAGE_NT_HEADERS32), 1, pe_fp);
 
 	if (read_size != 1) {
 		fprintf(stderr, "Error: Bad PE file!\n");
 		exit(-1);
 	}
 
-	nt_sections_cnt = pe_nt_headers_32.FileHeader.NumberOfSections;
-	nt_optional_header_size = pe_nt_headers_32.FileHeader.SizeOfOptionalHeader;
-	nt_characteristics = pe_nt_headers_32.FileHeader.Characteristics;
-	nt_optional_headers = &pe_nt_headers_32.OptionalHeader;
+	nt_sections_cnt = pe_nt_headers_64.FileHeader.NumberOfSections;
+	nt_optional_header_size = pe_nt_headers_64.FileHeader.SizeOfOptionalHeader;
+	nt_characteristics = pe_nt_headers_64.FileHeader.Characteristics;
+	nt_optional_headers = &pe_nt_headers_64.OptionalHeader;
 	pe_header_size = nt_optional_headers->SizeOfHeaders;
 	import_dir_table_rva = nt_optional_headers->DataDirectory[___IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress;
 	import_dir_table_size = nt_optional_headers->DataDirectory[___IMAGE_DIRECTORY_ENTRY_IMPORT].Size;
@@ -237,12 +238,12 @@ void PE32::parse_nt_headers()
 
 }
 
-void PE32::parse_section_headers()
+void PE64::parse_section_headers()
 {
 	size_t read_size;
 
 	// 检查一下边界
-	int start_pos = nt_headers_offset + sizeof(___IMAGE_NT_HEADERS32);
+	int start_pos = nt_headers_offset + sizeof(___IMAGE_NT_HEADERS64);
 	if (start_pos + nt_sections_cnt * sizeof(___IMAGE_SECTION_HEADER) > pe_header_size) {
 		fprintf(stderr, "Error: Out of PE header's size. Bad PE file!\n");
 		exit(-1);
@@ -265,7 +266,7 @@ void PE32::parse_section_headers()
 
 }
 
-void PE32::parse_import_directory()
+void PE64::parse_import_directory()
 {
 	if (!import_dir_table_size || !import_dir_table_rva) return;
 
@@ -306,7 +307,7 @@ void PE32::parse_import_directory()
 
 }
 
-void PE32::parse_export_directory()
+void PE64::parse_export_directory()
 {
 	size_t read_size;
 	if (!export_dir_table_size || !export_dir_table_rva) return;
@@ -322,7 +323,7 @@ void PE32::parse_export_directory()
 
 }
 
-void PE32::parse_basereloc_table()
+void PE64::parse_basereloc_table()
 {
 	size_t read_size;
 	DWORD basereloc_offset, basereloc_entry_num, i;
@@ -383,7 +384,7 @@ void PE32::parse_basereloc_table()
 
 }
 
-void PE32::parse_resources_table()
+void PE64::parse_resources_table()
 {
 	size_t read_size;
 
@@ -400,7 +401,7 @@ void PE32::parse_resources_table()
 	// 之后的操作就交给print()函数去处理
 }
 
-void PE32::print_file_info()
+void PE64::print_file_info()
 {
 	fprintf(stdout, "======Basic info======\n\n");
 	fseek(pe_fp, 0, SEEK_END);
@@ -409,7 +410,7 @@ void PE32::print_file_info()
 	fprintf(stdout, "\n==========END=========\n\n");
 }
 
-void PE32::print_dos_header_info()
+void PE64::print_dos_header_info()
 {
 
 	// 为了简化，我们这里只打印一些主要信息
@@ -420,7 +421,7 @@ void PE32::print_dos_header_info()
 
 }
 
-void PE32::print_dos_stub_info()
+void PE64::print_dos_stub_info()
 {	
 
 	if (!rich_headers.exits) return;
@@ -445,19 +446,19 @@ void PE32::print_dos_stub_info()
 
 }
 
-void PE32::print_nt_headers_info()
+void PE64::print_nt_headers_info()
 {
 	WORD temp_c, n, i;
 
 	fprintf(stdout, "======NT Headers======\n\n");
 
-	fprintf(stdout, "PE Signature: 0x%X\n\n", pe_nt_headers_32.Signature);
+	fprintf(stdout, "PE Signature: 0x%X\n\n", pe_nt_headers_64.Signature);
 
 	fprintf(stdout, "File Header:\n");
 	fprintf(stdout, " - Machine: %s (0x%04X)\n", 
-		translate_machine(pe_nt_headers_32.FileHeader.Machine),
-		pe_nt_headers_32.FileHeader.Machine);
-	nt_headers_machine = pe_nt_headers_32.FileHeader.Machine;
+		translate_machine(pe_nt_headers_64.FileHeader.Machine),
+		pe_nt_headers_64.FileHeader.Machine);
+	nt_headers_machine = pe_nt_headers_64.FileHeader.Machine;
 	fprintf(stdout, " - Sections Count: %d\n", nt_sections_cnt);
 	// fprintf(stdout, " - Time Date Stamp: %d\n", pe_nt_headers_32.FileHeader.TimeDateStamp);
 	fprintf(stdout, " - Size of Optional Header: %d\n", nt_optional_header_size);
@@ -480,7 +481,7 @@ void PE32::print_nt_headers_info()
 	fprintf(stdout, " - Size of Uninitialized Data: 0x%X (%d)\n", nt_optional_headers->SizeOfUninitializedData, nt_optional_headers->SizeOfUninitializedData);
 	fprintf(stdout, " - Entry Point: 0x%X (%d)\n", nt_optional_headers->AddressOfEntryPoint, nt_optional_headers->AddressOfEntryPoint);
 	fprintf(stdout, " - Base of Code: 0x%X\n", nt_optional_headers->BaseOfCode);
-	fprintf(stdout, " - Desired Image Base: 0x%X\n", nt_optional_headers->ImageBase);
+	fprintf(stdout, " - Desired Image Base: 0x%llX\n", nt_optional_headers->ImageBase);
 	fprintf(stdout, " - Section Alignment: 0x%X\n", nt_optional_headers->SectionAlignment);
 	fprintf(stdout, " - File Alignment: 0x%X\n", nt_optional_headers->FileAlignment);
 	fprintf(stdout, " - Size of Image: 0x%X (%d)\n", nt_optional_headers->SizeOfImage, nt_optional_headers->SizeOfImage);
@@ -495,7 +496,7 @@ void PE32::print_nt_headers_info()
 
 }
 
-void PE32::print_section_headers_info()
+void PE64::print_section_headers_info()
 {
 
 	int i;
@@ -527,7 +528,7 @@ void PE32::print_section_headers_info()
 
 }
 
-void PE32::print_import_table_info()
+void PE64::print_import_table_info()
 {
 	if (!import_dir_table_size || !import_dir_table_rva) {
 		fprintf(stdout, "====No import table===\n\n");
@@ -584,20 +585,21 @@ void PE32::print_import_table_info()
 		fprintf(stdout, "    - Entries: \n\n");
 
 		for (j = 0; ; j++) {
-			fseek(pe_fp, va_to_raw(import_dir_table_entries[i].FirstThunk + j * sizeof(DWORD)), SEEK_SET);
-			fread(&name_rva, sizeof(DWORD), 1, pe_fp);
-			if (name_rva == 0) break;
-			if (!(name_rva & 0x80000000)) {
-				fseek(pe_fp, va_to_raw(name_rva), SEEK_SET);
+			QWORD func_name_rva;
+			fseek(pe_fp, va_to_raw(import_dir_table_entries[i].FirstThunk + j * sizeof(QWORD)), SEEK_SET);
+			fread(&func_name_rva, sizeof(QWORD), 1, pe_fp);
+			if (func_name_rva == 0) break;
+			if (!(func_name_rva & 0x8000000000000000)) {
+				fseek(pe_fp, va_to_raw(func_name_rva & 0x7fffffff), SEEK_SET);
 				fread(&hint, sizeof(___IMAGE_IMPORT_BY_NAME), 1, pe_fp);
 				hint.Name[99] = 0; // 防止越界读
 				fprintf(stdout, "       [%02d] Name: %s\n            Hint: 0x%X\n            Call via: 0x%X (RVA)\n",
 					j + 1, hint.Name, hint.Hint, 
-					import_dir_table_entries[i].FirstThunk + j * sizeof(DWORD));
+					import_dir_table_entries[i].FirstThunk + j * sizeof(QWORD));
 			}
 			else {
 				// 按照序号导入
-				fprintf(stdout, "       [%02d] Ordinal: 0x%X\n", j + 1, name_rva & 0xffff);
+				fprintf(stdout, "       [%02d] Ordinal: 0x%llX\n", j + 1, func_name_rva & 0xffff);
 			}
 		}
 		fprintf(stdout, "\n");
@@ -607,7 +609,7 @@ void PE32::print_import_table_info()
 
 }
 
-void PE32::print_export_table_info()
+void PE64::print_export_table_info()
 {
 	size_t read_size;
 	DWORD name_offset, name_size, i;
@@ -769,7 +771,7 @@ void PE32::print_export_table_info()
 
 }
 
-void PE32::print_basereloc_table_info()
+void PE64::print_basereloc_table_info()
 {
 	DWORD i, j, block_entries_num;
 	WORD  value;
@@ -809,7 +811,7 @@ void PE32::print_basereloc_table_info()
 
 }
 
-void PE32::print_resources_table_info()
+void PE64::print_resources_table_info()
 {
 
 	if (!resource_dir_table_rva || !resource_dir_table_size) {
