@@ -229,19 +229,7 @@ static const char* translate_data_directory(int idx) {
 }
 
 static const char* translate_block_entry_types(WORD type, WORD machine) {
-	/*
-	"Padding (skipped)",
-	"High WORD of 32-bit field",
-	"Low  WORD of 32-bit field",
-	"32 bit field",
-	"HighAdj",
-	"XXX",
-	"Reserved",
-	"XXX",
-	"XXX",
-	"XXX",
-	"64 bit field"
-	*/
+
 	BYTE flag = 0;
 	WORD mips_family[] = {
 		0x166, 0x266, 0x366, 0x466

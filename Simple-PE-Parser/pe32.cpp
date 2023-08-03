@@ -2,6 +2,7 @@
 
 PE32::PE32(char* path, FILE* fp) : file_path(path), pe_fp(fp) 
 {
+
 	if (!fp || pe_validate(fp) != 32) {
 		// 错误的API调用，直接退出解析过程！
 		// 可能会冗余，仅用于保持API的鲁棒性
@@ -14,6 +15,7 @@ PE32::PE32(char* path, FILE* fp) : file_path(path), pe_fp(fp)
 
 void PE32::print_info()
 {
+	print_file_info();
 	print_dos_header_info();
 	print_dos_stub_info();
 	print_nt_headers_info();
@@ -21,6 +23,7 @@ void PE32::print_info()
 	print_import_table_info();
 	print_export_table_info();
 	print_basereloc_table_info();
+	print_resources_table_info();
 }
 
 DWORD PE32::va_to_raw(DWORD va)
@@ -68,6 +71,9 @@ void PE32::parse_file()
 
 	// 解析Base Relocation Table
 	parse_basereloc_table();
+
+	// 解析Resource Table
+	parse_resources_table();
 
 }
 
@@ -226,6 +232,8 @@ void PE32::parse_nt_headers()
 	export_dir_table_size = nt_optional_headers->DataDirectory[___IMAGE_DIRECTORY_ENTRY_EXPORT].Size;
 	basereloc_dir_table_rva = nt_optional_headers->DataDirectory[___IMAGE_DIRECTORY_ENTRY_BASERELOC].VirtualAddress;
 	basereloc_dir_table_size = nt_optional_headers->DataDirectory[___IMAGE_DIRECTORY_ENTRY_BASERELOC].Size;
+	resource_dir_table_rva = nt_optional_headers->DataDirectory[___IMAGE_DIRECTORY_ENTRY_RESOURCE].VirtualAddress;
+	resource_dir_table_size = nt_optional_headers->DataDirectory[___IMAGE_DIRECTORY_ENTRY_RESOURCE].Size;
 
 }
 
@@ -375,10 +383,30 @@ void PE32::parse_basereloc_table()
 
 }
 
+void PE32::parse_resources_table()
+{
+	size_t read_size;
+
+	if (!resource_dir_table_rva || !resource_dir_table_size) return;
+
+	fseek(pe_fp, va_to_raw(resource_dir_table_rva), SEEK_SET);
+	read_size = fread(&resource_dir_root, sizeof(___IMAGE_RESOURCE_DIRECTORY), 1, pe_fp);
+
+	if (read_size != 1) {
+		fprintf(stderr, "Error: Bad PE file!\n");
+		exit(-1);
+	}
+
+	// 之后的操作就交给print()函数去处理
+}
 
 void PE32::print_file_info()
 {
-
+	fprintf(stdout, "======Basic info======\n\n");
+	fseek(pe_fp, 0, SEEK_END);
+	fprintf(stdout, "File: %s\n", this->file_path);
+	fprintf(stdout, "Size: %d\n", ftell(pe_fp));
+	fprintf(stdout, "\n==========END=========\n\n");
 }
 
 void PE32::print_dos_header_info()
@@ -743,7 +771,7 @@ void PE32::print_export_table_info()
 
 void PE32::print_basereloc_table_info()
 {
-	DWORD i, j, basereloc_offset, block_entries_num;
+	DWORD i, j, block_entries_num;
 	WORD  value;
 	if (!basereloc_dir_table_rva || !basereloc_dir_table_size) {
 		fprintf(stdout, "===No base relocation table===\n\n");
@@ -775,6 +803,130 @@ void PE32::print_basereloc_table_info()
 			fprintf(stdout, "         Reloc RVA: 0x%X\n\n", basereloc_table[i].VirtualAddress + (value & 0x0fff));
 		}
 
+	}
+
+	fprintf(stdout, "\n==========END=========\n\n");
+
+}
+
+void PE32::print_resources_table_info()
+{
+
+	if (!resource_dir_table_rva || !resource_dir_table_size) {
+		fprintf(stdout, "=====No resource table=====\n\n");
+		fprintf(stdout, "\n==========END=========\n\n");
+		return;
+	}
+
+	fprintf(stdout, "=======Resource table======\n\n");
+
+	size_t read_size;
+	DWORD total_entries_num = resource_dir_root.NumberOfNamedEntries +
+		resource_dir_root.NumberOfIdEntries;
+	DWORD i, j;
+	
+	___IMAGE_RESOURCE_DIRECTORY_ENTRY tmp_entries_0;
+
+	DWORD start_pos = va_to_raw(resource_dir_table_rva);
+
+	// 先读取第一层的entries
+	// 这里用递归解析是不是更优雅点？（TODO?）
+	for (i = 0; i < total_entries_num; i++) {
+
+		fseek(pe_fp, start_pos + sizeof(__IMAGE_RESOURCE_DIRECTORY) + i * sizeof(___IMAGE_RESOURCE_DIRECTORY_ENTRY), SEEK_SET);
+
+		read_size = fread(&tmp_entries_0, sizeof(___IMAGE_RESOURCE_DIRECTORY_ENTRY), 1, pe_fp);
+
+		if (read_size != 1) {
+			fprintf(stderr, "Error: Bad PE!\n");
+			exit(-1);
+		}
+
+		if (tmp_entries_0.DUMMYUNIONNAME.DUMMYSTRUCTNAME.NameIsString) {
+			// 资源ID是字符串
+			fseek(pe_fp, start_pos + tmp_entries_0.DUMMYUNIONNAME.DUMMYSTRUCTNAME.NameOffset, SEEK_SET);
+			WORD unicode_len;
+			fread(&unicode_len, sizeof(WORD), 1, pe_fp);
+			wchar_t* name_tmp = (wchar_t*)malloc(sizeof(wchar_t) * (unicode_len + 1));
+			if (!name_tmp) {
+				fprintf(stderr, "Error: Name_tmp malloc failed!\n");
+				exit(-1);
+			}
+			name_tmp[unicode_len] = 0;
+			fread(name_tmp, sizeof(wchar_t), unicode_len, pe_fp);
+			fprintf(stdout, " * Name Entry: %ws\n", name_tmp);
+			free(name_tmp);
+		}
+		else {
+			// 资源ID是数字
+			fprintf(stdout, " * ID Entry: %03d\n", tmp_entries_0.DUMMYUNIONNAME.Id);
+		}
+
+		// fprintf(stdout, "    - \n");
+
+		// 解析第二层
+		if (tmp_entries_0.DUMMYUNIONNAME2.DUMMYSTRUCTNAME2.DataIsDirectory) {
+			// 获取第二级目录表
+			DWORD offset = tmp_entries_0.DUMMYUNIONNAME2.DUMMYSTRUCTNAME2.OffsetToDirectory;
+			fseek(pe_fp, offset + start_pos, SEEK_SET);
+			___IMAGE_RESOURCE_DIRECTORY tmp_dir;
+			fread(&tmp_dir, sizeof(___IMAGE_RESOURCE_DIRECTORY), 1, pe_fp);
+			DWORD total_entries_num_2 = tmp_dir.NumberOfIdEntries + tmp_dir.NumberOfNamedEntries;
+
+			fprintf(stdout, "    - Entries Count: %d\n", total_entries_num_2);
+			fprintf(stdout, "    - Subentries:\n");
+
+			// 依然解析资源名是数字还是字符串
+			for (j = 0; j < total_entries_num_2; j++) {
+
+				__IMAGE_RESOURCE_DIRECTORY_ENTRY tmp_entries_1;
+				fseek(pe_fp, offset + start_pos + sizeof(___IMAGE_RESOURCE_DIRECTORY) + j * sizeof(__IMAGE_RESOURCE_DIRECTORY_ENTRY), SEEK_SET);
+				fread(&tmp_entries_1, sizeof(__IMAGE_RESOURCE_DIRECTORY_ENTRY), 1, pe_fp);
+
+				if (tmp_entries_1.DUMMYUNIONNAME.DUMMYSTRUCTNAME.NameIsString) {
+
+					// 资源名是字符串，解析字符串
+					fseek(pe_fp, start_pos + tmp_entries_1.DUMMYUNIONNAME.DUMMYSTRUCTNAME.NameOffset, SEEK_SET);
+					WORD unicode_len;
+					fread(&unicode_len, sizeof(WORD), 1, pe_fp);
+					wchar_t* name_tmp = (wchar_t*)malloc(sizeof(wchar_t) * (unicode_len + 1));
+					if (!name_tmp) {
+						fprintf(stderr, "Error: Name_tmp malloc failed!\n");
+						exit(-1);
+					}
+					name_tmp[unicode_len] = 0;
+					fread(name_tmp, sizeof(wchar_t), unicode_len, pe_fp);
+					fprintf(stdout, "       - Name Entry: %ws\n", name_tmp);
+
+				}
+				else {
+
+					// 资源名是数字
+					fprintf(stdout, "       - ID Entry: %03d\n", tmp_entries_1.DUMMYUNIONNAME.Id);
+
+				}
+
+				// 最后一层资源
+
+				if (tmp_entries_1.DUMMYUNIONNAME2.DUMMYSTRUCTNAME2.DataIsDirectory) {
+
+					___IMAGE_RESOURCE_DIRECTORY_ENTRY tmp_entries_2;
+					___IMAGE_RESOURCE_DATA_ENTRY data_entry;
+
+					fseek(pe_fp, start_pos + tmp_entries_1.DUMMYUNIONNAME2.DUMMYSTRUCTNAME2.OffsetToDirectory + sizeof(___IMAGE_RESOURCE_DIRECTORY), SEEK_SET);
+					fread(&tmp_entries_2, sizeof(tmp_entries_2), 1, pe_fp);
+
+					fseek(pe_fp, start_pos + tmp_entries_2.DUMMYUNIONNAME2.DUMMYSTRUCTNAME2.OffsetToDirectory, SEEK_SET);
+					fread(&data_entry, sizeof(data_entry), 1, pe_fp);
+
+					fprintf(stdout, "          - Resource's RVA: 0x%0X\n", data_entry.OffsetToData);
+					fprintf(stdout, "          - Resource's Size: 0x%0X\n", data_entry.Size);
+
+				}
+
+				fprintf(stdout, "\n");
+			}
+		}
 	}
 
 	fprintf(stdout, "\n==========END=========\n\n");

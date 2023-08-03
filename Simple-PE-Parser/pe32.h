@@ -21,6 +21,7 @@ private:
 	___PIMAGE_IMPORT_DESCRIPTOR import_dir_table_entries;
 	___IMAGE_EXPORT_DIRECTORY   export_dir_table;
 	___PIMAGE_BASE_RELOCATION   basereloc_table;
+	___IMAGE_RESOURCE_DIRECTORY resource_dir_root;
 
 	// PE相关头中的偏移量和变量
 	WORD  nt_headers_machine;
@@ -35,6 +36,8 @@ private:
 	DWORD export_dir_table_size;
 	DWORD basereloc_dir_table_rva;
 	DWORD basereloc_dir_table_size;
+	DWORD resource_dir_table_rva;
+	DWORD resource_dir_table_size;
 
 	// 辅助变量
 	DWORD import_dir_table_entries_num;
@@ -55,6 +58,7 @@ private:
 	void parse_import_directory();
 	void parse_export_directory();
 	void parse_basereloc_table();
+	void parse_resources_table();
 
 	// 打印相关的函数
 	void print_file_info();
@@ -65,5 +69,6 @@ private:
 	void print_import_table_info();
 	void print_export_table_info();
 	void print_basereloc_table_info();
+	void print_resources_table_info();
 
 };

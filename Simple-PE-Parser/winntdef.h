@@ -36,6 +36,9 @@ typedef unsigned __int64 ULONGLONG;
 #define ___IMAGE_SIZEOF_SHORT_NAME              8
 #define ___IMAGE_SIZEOF_SECTION_HEADER          40
 
+#define	___IMAGE_RESOURCE_NAME_IS_STRING    0x80000000
+#define	___IMAGE_RESOURCE_DATA_IS_DIRECTORY 0x80000000
+
 typedef struct __IMAGE_DOS_HEADER {
     WORD   e_magic;
     WORD   e_cblp;
@@ -203,3 +206,39 @@ typedef struct __IMAGE_EXPORT_DIRECTORY {
     DWORD	AddressOfNames;
     DWORD	AddressOfNameOrdinals;
 } ___IMAGE_EXPORT_DIRECTORY, * ___PIMAGE_EXPORT_DIRECTORY;
+
+typedef struct __IMAGE_RESOURCE_DIRECTORY {
+    DWORD	Characteristics;
+    DWORD	TimeDateStamp;
+    WORD	MajorVersion;
+    WORD	MinorVersion;
+    WORD	NumberOfNamedEntries;
+    WORD	NumberOfIdEntries;
+    /*  IMAGE_RESOURCE_DIRECTORY_ENTRY DirectoryEntries[]; */
+} ___IMAGE_RESOURCE_DIRECTORY, *___PIMAGE_RESOURCE_DIRECTORY;
+
+typedef struct __IMAGE_RESOURCE_DIRECTORY_ENTRY {
+    union {
+        struct {
+            unsigned NameOffset : 31;
+            unsigned NameIsString : 1;
+        } DUMMYSTRUCTNAME;
+        DWORD   Name;
+        WORD    Id;
+        WORD    __pad;
+    } DUMMYUNIONNAME;
+    union {
+        DWORD   OffsetToData;
+        struct {
+            unsigned OffsetToDirectory : 31;
+            unsigned DataIsDirectory : 1;
+        } DUMMYSTRUCTNAME2;
+    } DUMMYUNIONNAME2;
+} ___IMAGE_RESOURCE_DIRECTORY_ENTRY, *___PIMAGE_RESOURCE_DIRECTORY_ENTRY;
+
+typedef struct __IMAGE_RESOURCE_DATA_ENTRY {
+    DWORD	OffsetToData;
+    DWORD	Size;
+    DWORD	CodePage;
+    DWORD	Reserved;
+} ___IMAGE_RESOURCE_DATA_ENTRY, * ___PIMAGE_RESOURCE_DATA_ENTRY;
